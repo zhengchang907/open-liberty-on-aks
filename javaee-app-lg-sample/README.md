@@ -2,8 +2,7 @@
 
 This article demonstrates how to:
 
-* Create an AKS cluster, an Azure Container Registry (ACR) instance, and an Azure Application Gateway (AAG).
-* Integrate the ACR and the AAG with the AKS.
+* Create an AKS cluster with the AGIC (Application Gateway Ingress Controller) add-on enabled, and an Azure Container Registry (ACR) instance.
 * Run your Java, Java EE, Jakarta EE, or MicroProfile application on the Open Liberty or WebSphere Liberty runtime.
 * Build the application Docker image using Open Liberty container images.
 * Deploy the containerized application to an AKS cluster using the Open Liberty Operator.
@@ -28,7 +27,7 @@ For more details on Open Liberty, see [the Open Liberty project page](https://op
 
 An Azure resource group is a logical group in which Azure resources are deployed and managed.  
 
-Create a resource group called *java-liberty-project* using the [az group create](/cli/azure/group#az_group_create) command  in the *eastus* location. This resource group will be used later for creating the ACR instance, the AAG, and the AKS cluster.
+Create a resource group called *java-liberty-project* using the [az group create](/cli/azure/group#az_group_create) command  in the *eastus* location. This resource group will be used later for creating the ACR instance and the AKS cluster.
 
 ```azurecli-interactive
 RESOURCE_GROUP_NAME=java-liberty-project
@@ -66,27 +65,13 @@ docker login $LOGIN_SERVER -u $USER_NAME -p $PASSWORD
 
 You should see `Login Succeeded` at the end of command output if you have logged into the ACR instance successfully.
 
-## Create an AAG
-
-You will need to create an AAG which will be used as the load balancer for your application running on the AKS later. Run the following commands to deploy an AAG:
-
-```azurecli-interactive
-wget https://raw.githubusercontent.com/oracle/weblogic-azure/main/weblogic-azure-aks/src/main/bicep/modules/_azure-resoruces/_appgateway.bicep -O appgateway.bicep
-
-# If The following command exited with error "Failed to parse 'appgateway.bicep', please check whether it is a valid JSON format", pls run `az upgrade` to upgrade Azure CLI
-result=$(az deployment group create -n testDeployment -g $RESOURCE_GROUP_NAME --template-file appgateway.bicep)
-APPGW_NAME=$(echo $result | jq -r '.properties.outputs.appGatewayName.value')
-APPGW_VNET_NAME=$(echo $result | jq -r '.properties.outputs.vnetName.value')
-APPGW_URL=$(echo $result | jq -r '.properties.outputs.appGatewayURL.value')
-```
-
 ## Create an AKS cluster
 
 Use the [az aks create](/cli/azure/aks#az_aks_create) command to create an AKS cluster. The following example creates a cluster named *myAKSCluster* with one node. This will take several minutes to complete.
 
 ```azurecli-interactive
 CLUSTER_NAME=myAKSCluster
-az aks create --resource-group $RESOURCE_GROUP_NAME --name $CLUSTER_NAME --node-count 1 --generate-ssh-keys --enable-managed-identity
+az aks create --resource-group $RESOURCE_GROUP_NAME --name $CLUSTER_NAME --node-count 1 --generate-ssh-keys --enable-managed-identity --network-plugin azure --enable-addons ingress-appgw --appgw-name myApplicationGateway --appgw-subnet-cidr "10.2.0.0/16"
 ```
 
 After a few minutes, the command completes and returns JSON-formatted information about the cluster, including the following:
@@ -114,25 +99,6 @@ az aks nodepool add \
 
 # Optional: list node pools
 az aks nodepool list -g $RESOURCE_GROUP_NAME --cluster-name $CLUSTER_NAME
-```
-
-### Create network peers between the AAG and AKS cluster
-
-To successfully communicate between the AAG and AKS cluster, we will need to create network peers between them. Run the following commands to peer two virtual networks:
-
-```azurecli-interactive
-aksMCRGName=$(az aks show -n $CLUSTER_NAME -g $RESOURCE_GROUP_NAME -o tsv --query "nodeResourceGroup")
-aksNetWorkId=$(az resource list -g ${aksMCRGName} --resource-type Microsoft.Network/virtualNetworks -o tsv --query '[*].id')
-aksNetworkName=$(az resource list -g ${aksMCRGName} --resource-type Microsoft.Network/virtualNetworks -o tsv --query '[*].name')
-az network vnet peering create --name aks-appgw-peer --remote-vnet ${aksNetWorkId} --resource-group ${RESOURCE_GROUP_NAME} --vnet-name ${APPGW_VNET_NAME} --allow-vnet-access
-
-appgwNetworkId=$(az resource list -g ${RESOURCE_GROUP_NAME} --name ${APPGW_VNET_NAME} -o tsv --query '[*].id')
-az network vnet peering create --name aks-appgw-peer --remote-vnet ${appgwNetworkId} --resource-group ${aksMCRGName} --vnet-name ${aksNetworkName} --allow-vnet-access
-
-# Associate the route table to Application Gateway's subnet
-routeTableId=$(az network route-table list -g $aksMCRGName --query "[].id | [0]" -o tsv)
-appGatewaySubnetId=$(az network application-gateway show -n $APPGW_NAME -g $RESOURCE_GROUP_NAME -o tsv --query "gatewayIpConfigurations[0].subnet.id")
-az network vnet subnet update --ids $appGatewaySubnetId --route-table $routeTableId
 ```
 
 ### Connect to the AKS cluster
@@ -196,36 +162,6 @@ EOF
 cat openliberty-app-operator.yaml \
     | sed -e "s/OPEN_LIBERTY_WATCH_NAMESPACE/${WATCH_NAMESPACE}/" \
     | kubectl apply -n ${OPERATOR_NAMESPACE} -f -
-```
-
-## Install AAG Ingress Controller
-
-```azurecli-interactive
-# If you haven't installed Helm, pls install it first
-# Install Helm from `apt`, more details pls see https://helm.sh/docs/intro/install/
-curl https://baltocdn.com/helm/signing.asc | sudo apt-key add -
-sudo apt-get install apt-transport-https --yes
-echo "deb https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
-sudo apt-get update
-sudo apt-get install helm
-
-kubectl apply -f https://raw.githubusercontent.com/oracle/weblogic-azure/main/weblogic-azure-aks/src/main/arm/scripts/appgw-ingress-clusterAdmin-roleBinding.yaml
-
-subID=<your-azure-subscription-id>
-spBase64String=$(az ad sp create-for-rbac --sdk-auth | base64 -w0)
-azureAppgwIngressVersion="1.4.0"
-
-wget https://raw.githubusercontent.com/oracle/weblogic-azure/main/weblogic-azure-aks/src/main/arm/scripts/appgw-helm-config.yaml.template -O appgw-helm-config.yaml
-sed -i -e "s:@SUB_ID@:${subID}:g" appgw-helm-config.yaml
-sed -i -e "s:@APPGW_RG_NAME@:${RESOURCE_GROUP_NAME}:g" appgw-helm-config.yaml
-sed -i -e "s:@APPGW_NAME@:${APPGW_NAME}:g" appgw-helm-config.yaml
-sed -i -e "s:@WATCH_NAMESPACE@:${WATCH_NAMESPACE}:g" appgw-helm-config.yaml
-sed -i -e "s:@SP_ENCODING_CREDENTIALS@:${spBase64String}:g" appgw-helm-config.yaml
-
-helm install ingress-azure \
-    -f appgw-helm-config.yaml \
-    application-gateway-kubernetes-ingress/ingress-azure \
-    --version ${azureAppgwIngressVersion}
 ```
 
 ## Build application image
@@ -359,10 +295,4 @@ To avoid Azure charges, you should clean up unnecessary resources.  When the clu
 
 ```azurecli-interactive
 az group delete --name $RESOURCE_GROUP_NAME --yes --no-wait
-```
-
-Delete the service principal used for AAG Ingress Controller:
-
-```azurecli-interactive
-az ad sp delete --id $(echo $spBase64String | base64 -d | jq -r '.clientId')
 ```
