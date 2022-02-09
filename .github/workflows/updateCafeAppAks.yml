@@ -22,7 +22,7 @@ env:
     # description: "ACR password"
     # required: true
     # default: 'Vnhbk2f0nGX=LubJJVZTafm9aeuB=Xik'
-    azCliVersion: 2.23.0
+    azCliVersion: 2.30.0
     azureCredentials: ${{ secrets.AZURE_CREDENTIALS }}
     dbAdminUser: ${{ secrets.DB_ADMIN_USER }}
     # description: 'DB username'
