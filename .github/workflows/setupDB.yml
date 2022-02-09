@@ -11,7 +11,7 @@ env:
     location: eastus
     resourceGroupForDB: wlsd-db-${{ github.run_id }}-${{ github.run_number }}
     dbName: db${{ github.run_id }}${{ github.run_number }}
-    dbAdminUser: admin
+    dbAdminUser: ${{ secrets.DB_ADMIN_USER }}
     dbPassword: ${{ secrets.DB_PASSWORD }}
 
 jobs:
