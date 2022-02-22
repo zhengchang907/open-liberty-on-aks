@@ -1,6 +1,7 @@
 package cafe.model;
 
 import java.lang.invoke.MethodHandles;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -27,9 +28,18 @@ public class CafeRepository {
 
     public Coffee persistCoffee(Coffee coffee) {
         logger.log(Level.INFO, "Persisting the new coffee {0}.", coffee);
-        
-        this.entityManager.persist(coffee);
+//        this.entityManager.persist(coffee);
+        // wrap insert and scope_identity in one session
+        BigDecimal id = (BigDecimal)this.entityManager.createNativeQuery("INSERT INTO COFFEE (NAME, PRICE) VALUES (?, ?); SELECT SCOPE_IDENTITY()").setParameter(1, coffee.getName()).setParameter(2, coffee.getPrice()).getSingleResult();
+        logger.log(Level.INFO, "Getting coffee id: ", id);
+        coffee.setId(id.longValue());
         return coffee;
+    }
+    
+    public void refreshCoffee(Coffee coffee) {
+        Coffee managedCoffee = entityManager.merge(coffee);
+        logger.log(Level.INFO, "Getting managed coffee: ", managedCoffee);
+        this.entityManager.refresh(managedCoffee);
     }
 
     public void removeCoffeeById(Long coffeeId) {
