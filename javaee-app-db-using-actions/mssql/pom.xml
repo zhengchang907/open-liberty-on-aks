@@ -127,34 +127,6 @@
               </execution>
             </executions>
           </plugin>
-          <!-- Enable liberty-maven-plugin -->
-          <plugin>
-            <groupId>io.openliberty.tools</groupId>
-            <artifactId>liberty-maven-plugin</artifactId>
-            <version>3.5.1</version>
-            <executions>
-              <execution>
-                <id>package-server</id>
-                <phase>package</phase>
-                <goals>
-                  <goal>create</goal>
-                  <goal>install-feature</goal>
-                  <goal>deploy</goal>
-                </goals>
-                <configuration>
-                  <libertyRuntimeVersion>[20.0.0.1,)</libertyRuntimeVersion>
-                  <outputDirectory>${project.build.directory}/wlp-package</outputDirectory>
-                  <bootstrapProperties>
-                    <db.server.name>${db.server.name}</db.server.name>
-                    <db.port.number>${db.port.number}</db.port.number>
-                    <db.name>${db.name}</db.name>
-                    <db.user>${db.user}</db.user>
-                    <db.password>${db.password}</db.password>
-                  </bootstrapProperties>
-                </configuration>
-              </execution>
-            </executions>
-          </plugin>
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-dependency-plugin</artifactId>

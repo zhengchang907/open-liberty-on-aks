@@ -27,9 +27,14 @@ public class CafeRepository {
 
     public Coffee persistCoffee(Coffee coffee) {
         logger.log(Level.INFO, "Persisting the new coffee {0}.", coffee);
-        
         this.entityManager.persist(coffee);
         return coffee;
+    }
+    
+    public void refreshCoffee(Coffee coffee) {
+        Coffee managedCoffee = entityManager.merge(coffee);
+        logger.log(Level.INFO, "Getting managed coffee: ", managedCoffee);
+        this.entityManager.refresh(managedCoffee);
     }
 
     public void removeCoffeeById(Long coffeeId) {

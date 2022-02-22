@@ -30,7 +30,9 @@ public class CafeResource {
 	@Consumes({ MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON })
 	@Produces({ MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON })	
 	public Coffee createCoffee(Coffee coffee) {
-		return this.cafeRepository.persistCoffee(coffee);
+		Coffee coffee1 = this.cafeRepository.persistCoffee(coffee);
+		cafeRepository.refreshCoffee(coffee1);
+		return coffee1;
 	}
 
 	@GET
