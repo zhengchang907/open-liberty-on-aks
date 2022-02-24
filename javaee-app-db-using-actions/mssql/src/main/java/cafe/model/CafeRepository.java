@@ -39,18 +39,10 @@ public class CafeRepository {
         
 //        this.entityManager.persist(coffee);
         
-        DataSource defaultDataSource = null;
-		try {
-			defaultDataSource = (DataSource) new InitialContext().lookup("jdbc/JavaEECafeDB");
-		} catch (NamingException e1) {
-			// TODO Auto-generated catch block
-	        logger.log(Level.INFO, "Excepting when lookup defaultDataSource: {0}.", e1);
-			e1.printStackTrace();
-		}
-        
         String query = "INSERT INTO COFFEE (NAME, PRICE) VALUES (?, ?)";
         
-        try (Connection conn = defaultDataSource.getConnection()) {
+        // entityManager.getTransaction().begin();  //Cannot use an EntityTransaction while using JTA
+        try (Connection conn = this.entityManager.unwrap(java.sql.Connection.class)) {
             logger.log(Level.INFO, "Connection established successfully: {0}", conn);
             
             try (PreparedStatement statement = conn.prepareStatement(query, Statement.RETURN_GENERATED_KEYS)) {
@@ -61,10 +53,38 @@ public class CafeRepository {
                 logger.log(Level.INFO, "Insert coffee successfully: {0}", affectedRows);
                 
                 try (ResultSet keys = statement.getGeneratedKeys()) {
-                    logger.log(Level.INFO, "Get generated keys successfully: {0}", keys.next());
-                    logger.log(Level.INFO, "Get generated keys successfully: {0}", keys.getLong(1));
+                	keys.next();
                     coffee.setId(keys.getLong(1));
-                    logger.log(Level.INFO, "Fill in Coffee with id: {0}", coffee);
+                	
+                	// the following code proves the id from COFFEE table is the only result returned
+                	/*
+                    final ResultSetMetaData meta = keys.getMetaData();
+                    final int columnCount = meta.getColumnCount();
+                    final List<List<String>> rowList = new LinkedList<List<String>>();
+                    while (keys.next())
+                    {
+                        final List<String> columnList = new LinkedList<String>();
+                        rowList.add(columnList);
+
+                        for (int column = 1; column <= columnCount; ++column) 
+                        {
+                            final Object value = keys.getObject(column);
+                            columnList.add(String.valueOf(value));
+                        }
+                    }
+                    logger.log(Level.INFO, "All data from result: {0}", rowList);
+                    */
+                	// logs
+                	/*
+					[2022/2/24  9:47:12:938 CST] 0000002e CafeRepositor I   Finding all coffees.
+					[2022/2/24  9:47:12:939 CST] 0000002e sql           3   [eclipselink.sql] SELECT ID, NAME, PRICE FROM COFFEE
+					[2022/2/24  9:47:13:580 CST] 00000037 CafeRepositor I   Persisting the new coffee cafe.model.entity.Coffee[id=null, name=AA, price=10.0].
+					[2022/2/24  9:47:13:582 CST] 00000037 CafeRepositor I   Connection established successfully: com.ibm.ws.rsadapter.jdbc.v41.WSJdbc41Connection@6eeb0d3a
+					[2022/2/24  9:47:13:880 CST] 00000037 CafeRepositor I   Insert coffee successfully: 1
+					[2022/2/24  9:47:13:882 CST] 00000037 CafeRepositor I   All data from result: [[11]]
+					[2022/2/24  9:47:14:212 CST] 00000028 CafeRepositor I   Finding all coffees.
+					[2022/2/24  9:47:14:212 CST] 00000028 sql           3   [eclipselink.sql] SELECT ID, NAME, PRICE FROM COFFEE
+                	 */
                 }
             }
         } catch (SQLException e) {
