@@ -16,7 +16,7 @@ public class CafeRepository {
 
     private static final Logger logger = Logger.getLogger(MethodHandles.lookup().lookupClass().getName());
 
-    @PersistenceContext(name = "coffees")
+    @PersistenceContext
     private EntityManager entityManager;
     
     public List<Coffee> getAllCoffees() {
